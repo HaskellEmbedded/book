@@ -1,0 +1,6 @@
+---
+title: Embedded development with Ivory Tower
+author: Richard Marko
+rights:  Creative Commons Share Alike 4.0
+language: en-US
+...

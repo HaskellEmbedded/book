@@ -1,0 +1,22 @@
+name:                book
+version:             0.1.0.0
+synopsis:            Book
+-- description:
+license:             BSD3
+author:              base48.cz
+maintainer:          srk@48.io
+-- category:
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable          book
+  main-is:             Main.hs
+  hs-source-dirs:      app
+  build-depends:       base >= 4.6,
+                       bytestring,
+                       blaze-html,
+                       blaze-markup,
+                       text
+
+  default-language:    Haskell2010
+  ghc-options:         -Wall
