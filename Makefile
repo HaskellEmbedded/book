@@ -13,5 +13,5 @@ all:
 	  book.md
 
 
-watch-build:
+watch:
 	while true; do inotifywait -r -e close_write .; make; done
