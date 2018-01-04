@@ -51,7 +51,7 @@ Install stack according to instructions in the following section.
 ## Stack
 
 Stack build tool is used by Ivory/Tower projects.  Install stack first according to
-[theses instructions](http://docs.haskellstack.org/en/stable/install_and_upgrade/).
+[these instructions](http://docs.haskellstack.org/en/stable/install_and_upgrade/).
 
 ## ARM GCC
 
@@ -344,14 +344,14 @@ Before we dive deeper into what is going on try playing with the `uart` test.
 
 Open another terminal and start `screen`
 
-```
+```bash
 screen /dev/ttyACM1 115200
 # or /dev/f4uart if you defined u-dev rules according to example
 ```
 
 Flash board with
 
-```
+```bash
 make uart-test-run
 ```
 
@@ -364,6 +364,133 @@ tower>
 
 The `uart` application accepts `1` `2` and `\n` (newline) characters. `1` sets the LED on,
 `2` off and newline displays prompt again.
+
+The `Makefile` offers additional targets
+
+```bash
+make uart-test # only compiles app
+make uart-test-load # also loads it to MCU
+make uart-test-gdb # loads it and spawns gdb prompt where application can be 'start'ed
+make uart-test-run # combines load and 'run'
+```
+
+How??
+
+To explain the structure of the application we will use `simpleblink` application,
+which is quite simplified `blink` example we had ran previously. This contrived
+example is only for demonstration purposes and it outlines basic concepts of Ivory/Tower.
+
+The core of the `simpleblink` app is part is the file `Hello.Tests.SimpleBlink` which I will
+explain step-by-step.
+
+```haskell
+{-# LANGUAGE DataKinds #-}
+
+module Hello.Tests.SimpleBlink where
+
+import Ivory.Language
+import Ivory.Tower
+import Ivory.HW.Module
+
+import Ivory.BSP.STM32.Peripheral.GPIOF4
+```
+
+First the obligatory module and imports, the two most important imports here are `Ivory.Language` and `Ivory.Tower`
+modules, the former imports `Ivory` definitions and the latter for `Tower` framework. We also need
+to import `Ivory.HW.Module` as our module does some hardware manipulation, in this case writing to `GPIO` registers
+of F4 devices. Definitions of the `GPIO` registers are imported from `Ivory.BSP.STM32.Peripheral.GPIOF4`
+(the application actually uses only `GPIOPin` type from this module as the rest of the `GPIO` manipulation is abstracted).
+
+XXX: Explain DataKinds
+
+```haskell
+-- This artificial Tower program toggles LED when
+-- message arrives on its channel
+ledToggle :: GPIOPin -> Tower e (ChanInput ('Stored ITime))
+ledToggle ledPin = do
+  -- Create a channel for communicating with this tower
+  (cIn, cOut) <- channel
+```
+
+XXX: Explain Tower type
+
+```haskell
+  monitor "ledToggle" $ do
+    -- declare dependency on Ivory.HW.Module.hw_moduledef
+    monitorModuleDef $ hw_moduledef
+
+```
+
+We then define a monitor that groups two of our handlers.
+
+XXX: Explain  Hoare Monitor corespondance
+XXX: Explain  hw_moduledef
+
+```haskell
+    -- handler called during system initialization
+    handler systemInit "initLED" $ do
+      callback $ const $ do
+        pinEnable ledPin
+        pinSetMode ledPin gpio_mode_output
+```
+
+System init handler
+
+```haskell
+    -- LED state
+    ledOn <- stateInit "ledOn" (ival false)
+
+    -- handler for channel output
+    handler cOut "toggleLED" $ do
+      callback $ const $ do
+        -- get current state
+        isOn <- deref ledOn
+
+        ifte_ isOn
+          (do
+            pinClear ledPin
+            store ledOn false
+          )
+          (do
+            pinSet ledPin
+            store ledOn true
+          )
+```
+
+Channel input handler
+
+```haskell
+  return (cIn)
+```
+
+We return the input side of the channel we have created previously.
+
+```haskell
+-- main Tower of our application
+app :: (e -> GPIOPin) -> Tower e ()
+app toledpin = do 
+  ledpin <- fmap toledpin getEnv
+
+  -- creates a period that fires every 500ms
+  -- `per` is a ChanOutput, specifically ChanOutput ('Stored ITime)
+  per <- period (Milliseconds 500)
+
+  -- create our ledToggle tower
+  togIn <- ledToggle ledpin
+
+  -- this monitor simply forwards `per` messages to `togIn` ChanInput
+  monitor "blink" $ do
+    handler per "blinkPeriod" $ do
+      -- message to `togIn` channel are sent via `togInEmitter` - FIFO with capacity 1
+      togInEmitter <- emitter togIn 1
+
+      -- callback for period
+      callback $ \x ->
+        emit togInEmitter x
+```
+
+
+
 
 
 # Platforms
