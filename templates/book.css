@@ -71,6 +71,18 @@ nav .toc-section-number::after {
   content: "."
 }
 
+figure {
+  margin: 10px 60px;
+  padding: 10px;
+  text-align: center;
+  border: 1px dashed #acd1f3;
+}
+
+figurecaption {
+  padding: 10px;
+  background-color: #f5ffff;
+}
+
 .header-section-number {
   display: none;
 }

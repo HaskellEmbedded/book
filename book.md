@@ -69,210 +69,15 @@ Stack build tool is used by Ivory/Tower projects.  Install stack first according
 ```bash
 mkdir embedded
 cd embedded
-git clone  https://github.com/GaloisInc/ivory/
-git clone  https://github.com/GaloisInc/tower/
+git clone https://github.com/GaloisInc/ivory/
+git clone https://github.com/GaloisInc/tower/
 git clone https://github.com/GaloisInc/ivory-tower-stm32/
 ```
 
-## BlackMagic probe
+## Programmer
 
-The `F4 Discovery` board comes with ST-Link programmer firmware flashed on `STM32F103` MCU.
-We can replace this firmware with opensource [BlackMagic](https://github.com/blacksphere/blackmagic/) probe (BMP) firmware that allows
-us to use `GDB` directly without support tools like `OpenOCD` or `stlink`. This requires
-few simple hardware modifications although if you are not good with soldering small components
-better ask a friend for help. First we prepare the board for BMP flashing and then we add [UART pass-through].
-
-### Flashing
-
-Remove solder bridges `SB3`, `SB5`, `SB7`, `SB9` and close bridges `SB2`, `SB4`, `SB6`, `SB8`.
-Switching these from default to reserved enables flashing `STM32F103` MCU via `ST-LINK` port.
-
-Next remove jumpers from `ST-LINK` port and jumper `JP1` connecting target MCU to programmer MCU.
-Connect external programmer to `ST-LINK` port - `pin 1` is marked with dot:
-
-```
-Pin 1 - 3V3
-Pin 2 - SWCLK
-Pin 3 - GND
-Pin 4 - SWDIO
-```
-
-
-To see device states during the process it is useful to open a second terminal and run
-```
-dmesg -Hw
-```
-
-Next build firmware for `stlink` target and upload it to target
-```bash
-# make PROBE_HOST=stlink
-# flashing blackmagic_dfu via black magic probe
-git clone https://github.com/blacksphere/blackmagic/
-cd blackmagic
-make PROBE_HOST=stlink
-arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0' src/blackmagic_dfu
-# in GDB
-monitor swdp_scan
-attach 1
-monitor option erase
-# RESTART target so it unlocks, repeat up to 'monitor option erase' then issue
-load
-# RESTART target, it should boot to black magic dfu
-# [  +0.000002] usb 1-1.2: Product: Black Magic (Upgrade) for STLink/Discovery, (Firmware v1.6-rc0-257-gd6e2977)
-# upload black magic via dfu
-#
-# disconnect your programmer so only target board is connected
-#
-sudo dfu-util -s 0x08002000:leave -D src/blackmagic.bin
-# if dfu-util can't find your device you can specify -S <serial> from dmesg output
-sudo dfu-util -S 7EBA7BA4 -s 0x08002000:leave -D src/blackmagic.bin
-```
-
-Sample session:
-```bash
-$ arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0' src/blackmagic_dfu
-Reading symbols from src/blackmagic_dfu...done.
-Remote debugging using /dev/ttyACM0
-(gdb) monitor swdp_scan
-Target voltage: unknown
-Available Targets:
-No. Att Driver
- 1      STM32F1 medium density
-(gdb) attach 1
-Attaching to program: /home/rmarko/embedded/blackmagic/src/blackmagic_dfu, Remote target
-0x08010064 in ?? ()
-(gdb) monitor option erase
-0x1FFFF800: 0x0000
-0x1FFFF802: 0x0000
-0x1FFFF804: 0x0000
-0x1FFFF806: 0x0000
-0x1FFFF808: 0x0000
-0x1FFFF80A: 0x0000
-0x1FFFF80C: 0x0000
-0x1FFFF80E: 0x0000
-(gdb) load
-Error erasing flash with vFlashErase packet
-# ^^ target needs rebooting to unlock flash
-(gdb) quit
-
-# <TARGET REBOOTED>
-
-$ arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0' src/blackmagic_dfu
-Reading symbols from src/blackmagic_dfu...done.
-Remote debugging using /dev/ttyACM0
-(gdb) monitor swdp_scan
-Target voltage: unknown
-Available Targets:
-No. Att Driver
- 1      STM32F1 medium density
-(gdb) attach 1
-Attaching to program: /home/rmarko/embedded/blackmagic/src/blackmagic_dfu, Remote target
-0xfffffffe in ?? ()
-(gdb) load
-Loading section .text, size 0x1c48 lma 0x8000000
-Loading section .data, size 0x90 lma 0x8001c48
-Start address 0x8001498, load size 7384
-Transfer rate: 11 KB/sec, 820 bytes/write.
-(gdb) quit
-
-# <TARGET REBOOTED>
-
-$ dmesg
-[691195.851258] usb 1-1.6: new full-speed USB device number 112 using ehci-pci
-[691195.943994] usb 1-1.6: New USB device found, idVendor=1d50, idProduct=6017
-[691195.943997] usb 1-1.6: New USB device strings: Mfr=1, Product=2, SerialNumber=3
-[691195.943999] usb 1-1.6: Product: Black Magic (Upgrade) for STLink/Discovery, (Firmware v1.6.1-98-g9a5b31c)
-[691195.944001] usb 1-1.6: Manufacturer: Black Sphere Technologies
-[691195.944002] usb 1-1.6: SerialNumber: 7EBA7BA4
-
-$ sudo dfu-util -S 7EBA7BA4 -s 0x08002000:leave -D src/blackmagic.bin
-dfu-util 0.9
-
-Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
-Copyright 2010-2016 Tormod Volden and Stefan Schmidt
-This program is Free Software and has ABSOLUTELY NO WARRANTY
-Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
-
-dfu-util: Invalid DFU suffix signature
-dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
-Opening DFU capable USB device...
-ID 1d50:6017
-Run-time device DFU version 011a
-Claiming USB DFU Interface...
-Setting Alternate Setting #0 ...
-Determining device status: state = dfuIDLE, status = 0
-dfuIDLE, continuing
-DFU mode device DFU version 011a
-Device returned transfer size 1024
-DfuSe interface name: "Internal Flash   "
-Downloading to address = 0x08002000, size = 60660
-Download	[=========================] 100%        60660 bytes
-Download done.
-File downloaded successfully
-Transitioning to dfuMANIFEST state
-```
-
-Now jumper `JP1` should be put back after `DFU` upgrade so BlackMagic firmware doesn't jump to DFU upgrade
-anymore.
-
-```bash
-# <JUMPER JP1 PUT BACK, TARGET REBOOTED>
-$ dmesg
-[691227.339977] usb 1-1.6: new full-speed USB device number 113 using ehci-pci
-[691227.432954] usb 1-1.6: New USB device found, idVendor=1d50, idProduct=6018
-[691227.432956] usb 1-1.6: New USB device strings: Mfr=1, Product=2, SerialNumber=3
-[691227.432957] usb 1-1.6: Product: Black Magic Probe (STLINK), (Firmware v1.6.1-98-g9a5b31c)
-[691227.432958] usb 1-1.6: Manufacturer: Black Sphere Technologies
-[691227.432959] usb 1-1.6: SerialNumber: 7EBA7BA4
-[691227.433654] cdc_acm 1-1.6:1.0: ttyACM0: USB ACM device
-[691227.434290] cdc_acm 1-1.6:1.2: ttyACM1: USB ACM device
-```
-
-At this point, to be able to flash target MCU, you need to reverse solder bridge configuration
-we did earlier - from reserved back to default.
-
-### Usage
-
-```bash
-arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0'
-# Use following commands when in gdb
-monitor swdp_scan
-attach 1
-```
-
-Sample session:
-
-```bash
-(gdb) monitor swdp_scan
-Target voltage: unknown
-Available Targets:
-No. Att Driver
-1      STM32F4xx
-(gdb) attach 1
-Attaching to Remote target
-Error while running hook_stop:
-Invalid type combination in equality test.
-0x080035c2 in ?? ()
-(gdb) bt
-#0  0x080035c2 in ?? ()
-#1  0x08001032 in ?? ()
-#2  0x08001032 in ?? ()
-Backtrace stopped: previous frame identical to this frame (corrupt stack?)
-```
-
-### UART pass-through
-
-To enable `UART` bridge from F4 discovery board to BMP enabled programmer
-you need to solder wires between `UART2` (`PA2/PA3`) on `STM32F407`
-to pins `PA2/PA3` on `STM32F103`. These are located in the corners of the chips.
-Take care when soldering `PA3` on F407 as it's
-positioned near `VSS`, if you manage to short these pins try lifting `PA3`
-from the pad completely and then soldering wire directly to it.
-
-To access serial bridge:
-```bash
-screen /dev/ttyACM1 115200
-```
+For `F4 Discovery` it is recommended to re-flash ST-Link programmer with BlackMagic probe
+and add UART passhru according to [F4 Discovery hacking] section
 
 ## UDev
 For persistent device names you should create udev rules files in `/etc/udev/rules.d/`. For
@@ -374,13 +179,13 @@ make uart-test-gdb # loads it and spawns gdb prompt where application can be 'st
 make uart-test-run # combines load and 'run'
 ```
 
-How??
+## `simpleblink` dissected
 
 To explain the structure of the application we will use `simpleblink` application,
 which is quite simplified `blink` example we had ran previously. This contrived
 example is only for demonstration purposes and it outlines basic concepts of Ivory/Tower.
 
-The core of the `simpleblink` app is part is the file `Hello.Tests.SimpleBlink` which I will
+The core of the `simpleblink` app is part is the file `Hello.Tests.SimpleBlink` which we will
 explain step-by-step.
 
 ```haskell
@@ -401,7 +206,10 @@ to import `Ivory.HW.Module` as our module does some hardware manipulation, in th
 of F4 devices. Definitions of the `GPIO` registers are imported from `Ivory.BSP.STM32.Peripheral.GPIOF4`
 (the application actually uses only `GPIOPin` type from this module as the rest of the `GPIO` manipulation is abstracted).
 
-XXX: Explain DataKinds
+We also need to enable `DataKinds` language extension to allow for complex type annotations of our towers. Following tower
+represents a block of code responsible for togging a led. Its type tells us a that it accepts a `GPIOPin` and
+returns a `ChanInput ('Stored ITime))` in the `Tower` monad which basically means that by creating this tower
+it gives us an input channel with some concrete type (in this case `ITime`).
 
 ```haskell
 -- This artificial Tower program toggles LED when
@@ -412,7 +220,9 @@ ledToggle ledPin = do
   (cIn, cOut) <- channel
 ```
 
-XXX: Explain Tower type
+By using `channel` function we create a channel with input and ouput sides. We proceed by defining
+a `monitor` with some name. Monitor is another building block we will meet quite frequently and
+its exact meaning will be explained later.
 
 ```haskell
   monitor "ledToggle" $ do
@@ -420,11 +230,14 @@ XXX: Explain Tower type
     monitorModuleDef $ hw_moduledef
 
 ```
+For the monitor to work properly we need to declare its dependency on a module containing
+primitives for reading and writing hardware registers. The module is `hw_moduledef` imported
+from `Ivory.HW.Module`.
 
-We then define a monitor that groups two of our handlers.
-
-XXX: Explain  Hoare Monitor corespondance
-XXX: Explain  hw_moduledef
+After the book-keeping is done we proceed by defining two handlers
+grouped within our monitor. The first handler is called once during
+system initialization and prepares our hardware for operation - in this cases
+enables `ledPin` and configures it as an output pin.
 
 ```haskell
     -- handler called during system initialization
@@ -434,7 +247,29 @@ XXX: Explain  hw_moduledef
         pinSetMode ledPin gpio_mode_output
 ```
 
-System init handler
+`handler` is a function that accepts a channel output, handler name in form of a string
+and a handler definition in `Handler` monad. In `Handler` monad we use a `callback` function
+to define an actual code used for handling channel messages. `callback` accepts another
+function which on message arrival gets a reference to the message. Because we don't
+care about the type of the `systemInit` channel we throw away the reference with `const`.
+`systemInit` is the only global channel provided by `Tower`. The actual body of the
+callback function consists of `Ivory` code which in this case is quite abstracted
+to just `pinEnable` and `pinSetMode` functions. Next handler is a bit more interesting.
+
+In monitor context, we first define a `ledOn` state with `stateInit` function. To be explicit
+we also define its initialization value via `ival false` hence the use of `stateInit` instead
+of simpler `state` function that would also initialize `ledOn` state variable to false after
+its type is infered from local context. We will discuss state and initializers in more detail
+a bit later.
+
+`ledOn` represents a local state variable contained within current monitor. We use this
+to track the current state of the `LED` and flip it with the second handler.
+Note that
+this is the only state variable so far.
+
+Handler and callback for `cOut` channel we have defined earlier are defined
+in similar fashion to the previous handler except now we have more `Ivory` code
+in body of our function.
 
 ```haskell
     -- LED state
@@ -457,18 +292,41 @@ System init handler
           )
 ```
 
-Channel input handler
+On message reception we first use `deref` function to dereference our `ledOn` state variable.
+Then we branch according to its value with `ifte_` function which is basically a `C` equivalent
+of `if`. Depending on the value we either clear or set the LED and use `store` function
+to store our new LED state in `ledOn` variable. To perform actual register writes we use
+`pinSet` and `pinClear` functions that operate on respective GPIO registers for `ledPin` GPIO.
+
+Last missing piece of our `ledToggle` tower is a `return` function returning input side of the
+channel we have created previously.
 
 ```haskell
   return (cIn)
 ```
 
-We return the input side of the channel we have created previously.
+Now when our LED toggling tower is complete we define another tower that represents our
+application and which uses the `ledTower`. It is common to call this tower `app` as it
+represents an entry point of our application. It also accepts a function of type
+`e -> GPIOPin` which is used to pass a part of the environment to our application respective
+of the platform we run on (different platforms can specify different peripherals and pin mappings
+while our code can be made completely independent of the used platform). We then
+extract `ledpin` with `toledpin` function from the environment given by `getEnv`.
+
+Next we create a `period` tower with `per` channel output and also our `ledToggle` tower
+with `togIn` control channel. What remains now is to forward messages from `per` channel
+to `togIn` channel to make our LED controller react on periodic messages generated by
+`period` tower. For this we write a simple monitor that defines an `emitter` for `togIn`
+input channel. We then use the created emitter `togInEmitter` in callbacks body
+to send messages to it via `emit` function. Callback function now accepts
+a parameter `x` which is a reference to `ITime` message produced by `period` tower. We
+don't really care about its contents so we just send it to `ledToggle` tower via `togInEmitter`
+and `togIn` channel input.
 
 ```haskell
 -- main Tower of our application
 app :: (e -> GPIOPin) -> Tower e ()
-app toledpin = do 
+app toledpin = do
   ledpin <- fmap toledpin getEnv
 
   -- creates a period that fires every 500ms
@@ -490,7 +348,19 @@ app toledpin = do
 ```
 
 
+This contrived example doesn't really show full power of `Tower` and `Ivory` but
+only illustrates basic concepts of structuring applications and passing messages
+to different parts of the application.
 
+![`simpleblink` graph](./img/simpleblink.png)
+
+`simpleblink` is a simplified version of `blink` application that
+goes even further regarding abstractions and defines a following
+`ledController` function:
+
+```haskell
+ledController :: [LED] -> ChanOutput ('Stored IBool) -> Monitor e ()
+```
 
 
 # Platforms
@@ -979,6 +849,210 @@ instance Packable ('Struct "svm_out") where
   packRep = wrappedPackRep svmOutWrapper
 ```
 
+# F4 Discovery hacking
+
+Following section outlines few convenience hacks that can be done on `F4 Discovery` boards.
+
+## BlackMagic probe
+
+The `F4 Discovery` board comes with ST-Link programmer firmware flashed on `STM32F103` MCU.
+We can replace this firmware with opensource [BlackMagic](https://github.com/blacksphere/blackmagic/) probe (BMP) firmware that allows
+us to use `GDB` directly without support tools like `OpenOCD` or `stlink`. This requires
+few simple hardware modifications although if you are not good with soldering small components
+better ask a friend for help. First we prepare the board for BMP flashing and then we add [UART pass-through].
+
+### Flashing
+
+Remove solder bridges `SB3`, `SB5`, `SB7`, `SB9` and close bridges `SB2`, `SB4`, `SB6`, `SB8`.
+Switching these from default to reserved enables flashing `STM32F103` MCU via `ST-LINK` port.
+
+Next remove jumpers from `ST-LINK` port and jumper `JP1` connecting target MCU to programmer MCU.
+Connect external programmer to `ST-LINK` port - `pin 1` is marked with dot:
+
+```
+Pin 1 - 3V3
+Pin 2 - SWCLK
+Pin 3 - GND
+Pin 4 - SWDIO
+```
+
+
+To see device states during the process it is useful to open a second terminal and run
+```
+dmesg -Hw
+```
+
+Next build firmware for `stlink` target and upload it to target
+```bash
+# make PROBE_HOST=stlink
+# flashing blackmagic_dfu via black magic probe
+git clone https://github.com/blacksphere/blackmagic/
+cd blackmagic
+make PROBE_HOST=stlink
+arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0' src/blackmagic_dfu
+# in GDB
+monitor swdp_scan
+attach 1
+monitor option erase
+# RESTART target so it unlocks, repeat up to 'monitor option erase' then issue
+load
+# RESTART target, it should boot to black magic dfu
+# [  +0.000002] usb 1-1.2: Product: Black Magic (Upgrade) for STLink/Discovery, (Firmware v1.6-rc0-257-gd6e2977)
+# upload black magic via dfu
+#
+# disconnect your programmer so only target board is connected
+#
+sudo dfu-util -s 0x08002000:leave -D src/blackmagic.bin
+# if dfu-util can't find your device you can specify -S <serial> from dmesg output
+sudo dfu-util -S 7EBA7BA4 -s 0x08002000:leave -D src/blackmagic.bin
+```
+
+Sample session:
+```bash
+$ arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0' src/blackmagic_dfu
+Reading symbols from src/blackmagic_dfu...done.
+Remote debugging using /dev/ttyACM0
+(gdb) monitor swdp_scan
+Target voltage: unknown
+Available Targets:
+No. Att Driver
+ 1      STM32F1 medium density
+(gdb) attach 1
+Attaching to program: /home/rmarko/embedded/blackmagic/src/blackmagic_dfu, Remote target
+0x08010064 in ?? ()
+(gdb) monitor option erase
+0x1FFFF800: 0x0000
+0x1FFFF802: 0x0000
+0x1FFFF804: 0x0000
+0x1FFFF806: 0x0000
+0x1FFFF808: 0x0000
+0x1FFFF80A: 0x0000
+0x1FFFF80C: 0x0000
+0x1FFFF80E: 0x0000
+(gdb) load
+Error erasing flash with vFlashErase packet
+# ^^ target needs rebooting to unlock flash
+(gdb) quit
+
+# <TARGET REBOOTED>
+
+$ arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0' src/blackmagic_dfu
+Reading symbols from src/blackmagic_dfu...done.
+Remote debugging using /dev/ttyACM0
+(gdb) monitor swdp_scan
+Target voltage: unknown
+Available Targets:
+No. Att Driver
+ 1      STM32F1 medium density
+(gdb) attach 1
+Attaching to program: /home/rmarko/embedded/blackmagic/src/blackmagic_dfu, Remote target
+0xfffffffe in ?? ()
+(gdb) load
+Loading section .text, size 0x1c48 lma 0x8000000
+Loading section .data, size 0x90 lma 0x8001c48
+Start address 0x8001498, load size 7384
+Transfer rate: 11 KB/sec, 820 bytes/write.
+(gdb) quit
+
+# <TARGET REBOOTED>
+
+$ dmesg
+[691195.851258] usb 1-1.6: new full-speed USB device number 112 using ehci-pci
+[691195.943994] usb 1-1.6: New USB device found, idVendor=1d50, idProduct=6017
+[691195.943997] usb 1-1.6: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[691195.943999] usb 1-1.6: Product: Black Magic (Upgrade) for STLink/Discovery, (Firmware v1.6.1-98-g9a5b31c)
+[691195.944001] usb 1-1.6: Manufacturer: Black Sphere Technologies
+[691195.944002] usb 1-1.6: SerialNumber: 7EBA7BA4
+
+$ sudo dfu-util -S 7EBA7BA4 -s 0x08002000:leave -D src/blackmagic.bin
+dfu-util 0.9
+
+Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
+Copyright 2010-2016 Tormod Volden and Stefan Schmidt
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+dfu-util: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
+Opening DFU capable USB device...
+ID 1d50:6017
+Run-time device DFU version 011a
+Claiming USB DFU Interface...
+Setting Alternate Setting #0 ...
+Determining device status: state = dfuIDLE, status = 0
+dfuIDLE, continuing
+DFU mode device DFU version 011a
+Device returned transfer size 1024
+DfuSe interface name: "Internal Flash   "
+Downloading to address = 0x08002000, size = 60660
+Download	[=========================] 100%        60660 bytes
+Download done.
+File downloaded successfully
+Transitioning to dfuMANIFEST state
+```
+
+Now jumper `JP1` should be put back after `DFU` upgrade so BlackMagic firmware doesn't jump to DFU upgrade
+anymore.
+
+```bash
+# <JUMPER JP1 PUT BACK, TARGET REBOOTED>
+$ dmesg
+[691227.339977] usb 1-1.6: new full-speed USB device number 113 using ehci-pci
+[691227.432954] usb 1-1.6: New USB device found, idVendor=1d50, idProduct=6018
+[691227.432956] usb 1-1.6: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[691227.432957] usb 1-1.6: Product: Black Magic Probe (STLINK), (Firmware v1.6.1-98-g9a5b31c)
+[691227.432958] usb 1-1.6: Manufacturer: Black Sphere Technologies
+[691227.432959] usb 1-1.6: SerialNumber: 7EBA7BA4
+[691227.433654] cdc_acm 1-1.6:1.0: ttyACM0: USB ACM device
+[691227.434290] cdc_acm 1-1.6:1.2: ttyACM1: USB ACM device
+```
+
+At this point, to be able to flash target MCU, you need to reverse solder bridge configuration
+we did earlier - from reserved back to default.
+
+### Usage
+
+```bash
+arm-none-eabi-gdb --ex 'target extended-remote /dev/ttyACM0'
+# Use following commands when in gdb
+monitor swdp_scan
+attach 1
+```
+
+Sample session:
+
+```bash
+(gdb) monitor swdp_scan
+Target voltage: unknown
+Available Targets:
+No. Att Driver
+1      STM32F4xx
+(gdb) attach 1
+Attaching to Remote target
+Error while running hook_stop:
+Invalid type combination in equality test.
+0x080035c2 in ?? ()
+(gdb) bt
+#0  0x080035c2 in ?? ()
+#1  0x08001032 in ?? ()
+#2  0x08001032 in ?? ()
+Backtrace stopped: previous frame identical to this frame (corrupt stack?)
+```
+
+### UART pass-through
+
+To enable `UART` bridge from F4 discovery board to BMP enabled programmer
+you need to solder wires between `UART2` (`PA2/PA3`) on `STM32F407`
+to pins `PA2/PA3` on `STM32F103`. These are located in the corners of the chips.
+Take care when soldering `PA3` on F407 as it's
+positioned near `VSS`, if you manage to short these pins try lifting `PA3`
+from the pad completely and then soldering wire directly to it.
+
+To access serial bridge:
+```bash
+screen /dev/ttyACM1 115200
+```
+ 
 
 # Papers
 Lock Optimization for Hoare Monitors in Real-Time Systems https://www.cs.indiana.edu/%7Elepike/pub_pages/acsd17.html

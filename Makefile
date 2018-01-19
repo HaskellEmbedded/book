@@ -1,7 +1,7 @@
 all:
 	mkdir -p build
 	pandoc \
-	  -f markdown \
+	  -f markdown+implicit_header_references \
 	  -t html5 \
 	  --output build/index.html \
 	  --template templates/default.html5 \
@@ -11,6 +11,7 @@ all:
 	  --number-sections \
 	  title.txt \
 	  book.md
+	cp -R img build/
 
 
 watch:
