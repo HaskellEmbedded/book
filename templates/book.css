@@ -83,6 +83,10 @@ figurecaption {
   background-color: #f5ffff;
 }
 
+pre.numberSource a.sourceLine::before {
+  left: -6em !important;
+}
+
 .header-section-number {
   display: none;
 }
