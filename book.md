@@ -14,7 +14,7 @@ It is embedded in Haskell which keeps types in check and serves as a macro langu
 
 ## Tower
 
-[Tower](http://ivorylang.org/tower-overview.html) is framework written in Ivory for composing Ivory programs in safe manner - by providing communication channels,
+[Tower](http://ivorylang.org/tower-overview.html) is a framework written in Ivory for composing Ivory programs in safe manner - by providing communication channels,
 tasks, signal handlers and scheduling.
 Tower uses low level primitives from either [FreeRTOS](https://www.freertos.org/)
 or [EChronos](https://github.com/echronos/echronos) embedded real-time operating systems.
@@ -376,7 +376,9 @@ ledController :: [LED] -> ChanOutput ('Stored IBool) -> Monitor e ()
 
 Printing register data
 
+```
 p /t 0x8000
+```
 
 Printing MSB bit of `rxdata.rx_buf[0]` contents shifted by 8 bits to the left
 
@@ -384,7 +386,7 @@ Printing MSB bit of `rxdata.rx_buf[0]` contents shifted by 8 bits to the left
 p /t (rxdata.rx_buf[0] << 8) & 0b1000000000000000
 ```
 
-## .gdbinit
+## `.gdbinit`
 
 Is your friend
 
@@ -409,7 +411,9 @@ display /t rxcmd.rx_buf
 
 ## Bit twiddling
 
-Lots of embedded code revolves around bit manipulation.
+Lots of embedded code revolves around bit manipulation. In the end even the most complex
+embedded applications are just setting a bunch of registers so we need a nice tooling
+for this important part of our job.
 
 Ivory offers `bitdata` quasi-quoter for defining binary layouts. This is used heavily
 in device drivers and for controlling registers of the STM32 MCU.
@@ -428,36 +432,151 @@ in device drivers and for controlling registers of the STM32 MCU.
 Lets see what this produces:
 
 ```haskell
-:t MyReg
+
+> :t MyReg
 MyReg :: Bits 16 -> MyReg
-:i
+
+> :i
 newtype MyReg = MyReg (Bits 16)
 
 (x :: MyReg) = fromRep $ withBits 0 $ setBit myreg_bit_crc
 
 y = toRep x
-:t y
+
+> :t y
 Uint16
 ```
 
 We can convert from integer value to binary representation with `fromRep` and back to integer with `toRep`.
 
-BitRep?
+### Bit representation
 
-Bit representation
-
-```
+```haskell
 -- | Type function: "BitRep (n :: Nat)" returns an Ivory type given a
 -- bit size as a type-level natural.  Instances of this type family
 -- for bits [1..64] are generated using Template Haskell.
+
+(fromRep (1 :: Uint8) :: Bit)
+(fromRep (1 :: Uint8) :: Bits 4)
+
+-- can't do this (Couldn't match type ‘Uint16’ with ‘Uint8’)
+(fromRep (1 :: Uint16) :: Bits 8)
+
+-- instead we need
+(fromRep (1 :: Uint16) :: Bits 9)
+-- BitDataRep moves to next possible representation for 9 bits which is Uint16
 ```
 
+## `ivory-hw`
+
+`ivory-hw` package offers utilities for defining and working with registers. Hardware
+registers are associated with `BitData` types from previous section via `BitDataReg`
+type.
+
+### Defining registers
+
+There are two functions for creating `BitDataReg` types
+
+```haskell
+mkBitDataReg :: IvoryIOReg (BitDataRep d) => Integer -> BitDataReg d
+mkBitDataRegNamed :: IvoryIOReg (BitDataRep d) => Integer -> String -> BitDataReg d
+```
+
+We can see that a type `d` needs to have a `BitDataRep` instance for `BitDataReg` to be created.
+Second parameter is an actual memory address of the register and a `String` in case of `Named` version
+is just for identifying registers in AST or comments in generated code.
+
+To define a register we first need to define a `bitdata` using `ivory` quasi-quoter. We will
+use an actual register definition of 32-bit advanced timer shared memory controller register
+(`ATIM_SMCR`).
+
+```haskell
+[ivory|
+ bitdata ATIM_SMCR  :: Bits 32 = atim_smcr
+  { _               :: Bits 16
+  , atim_smcr_etp   :: Bit
+  , atim_smcr_ece   :: Bit
+  , atim_smcr_etps  :: Bits 2
+  , atim_smcr_etf   :: Bits 4
+  , atim_smcr_msm   :: Bit
+  , atim_smcr_ts    :: Bits 3
+  , _               :: Bit
+  , atim_smcr_sms   :: Bits 3
+  }
+|]
+
+
+myreg = (mkBitDataReg 0x1337) :: BitDataReg ATIM_SMCR
+-- or
+myreg = (mkBitDataRegNamed 0x1337 "adc_sr") :: BitDataReg ATIM_SMCR
+```
+
+Most of the time we don't need to define this directly but we instead create
+a new type representing a certain peripheral composed of all the peripherals registers. Before
+explaining this structuring further lets see how we can access and modify such registers.
 
 ### Modifying registers
 
-modifyReg
-setReg
+Most common method of working with registers is `modifyReg` which accepts a register
+and a code in `BitDataM` monad. For example to set the `MSM` bit and clear the `ETP` bit
+we would write
 
+```haskell
+modifyReg myreg $ do
+  setBit atim_smcr_msm
+  clearBit atim_smcr_etp
+```
+
+In case of fields consisting of multiple bits we need to use a `setField` function.
+For example to set `ETF` field to number `1` we would write
+
+```haskell
+modifyReg myreg $ do
+  setField atim_smcr_etf $ fromRep 1
+```
+
+In this case we also need to use `fromRep` to convert our number to its binary representation.
+
+### Setting registers
+
+To set a register instead of modifying it you can use a `setReg` function.
+
+```haskell
+setReg myreg $ do
+  setBit atim_smcr_msm
+  setBit atim_smcr_ece
+  setField atim_smcr_etf $ fromRep 1
+```
+
+`myreg` is in this case replaced with newly built value.
+
+### Reading registers
+
+For reading we have a `getReg` function and an infix operator `(#.)` for accessing
+bit data fields (similar to Data.Lens.^.).
+
+```haskell
+x <- getReg myreg
+when (bitToBool (x #. atim_smcr_msm)) $ do
+  ...
+```
+
+To extract a value from a multi-bit field we would write
+
+```haskell
+x <- getReg myreg
+let val <- toRep (x #. atim_smcr_etf)
+
+-- :t val
+-- Uint8
+```
+
+### Device peripheral driver structure
+
+```
+reg :: (IvoryIOReg (BitDataRep d)) => Integer -> String -> BitDataReg d
+reg offs name = mkBitDataRegNamed (base + offs) (n ++ "->" ++ name)
+```
 
 ## Initializers
 
@@ -542,7 +661,7 @@ We also define two helper functions `fwTypes` and `fwTowerDeps` to provide short
 
 stringInit "foo"
 
-# Serialization
+## Serialization
 
 Ivory.Serialize
 Ivory.Serialize.Little
