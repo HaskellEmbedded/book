@@ -185,7 +185,7 @@ To explain the structure of the application we will use `simpleblink` applicatio
 which is quite simplified `blink` example we had ran previously. This contrived
 example is only for demonstration purposes and it outlines basic concepts of Ivory/Tower.
 
-The core of the `simpleblink` app is part is the file `Hello.Tests.SimpleBlink` which we will
+The core of the `simpleblink` app is the file `Hello.Tests.SimpleBlink` which we will
 explain step-by-step.
 
 ``` {.haskell .numberLines startFrom="1"}
