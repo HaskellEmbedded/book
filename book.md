@@ -367,6 +367,41 @@ ledController :: [LED] -> ChanOutput ('Stored IBool) -> Monitor e ()
 
 ![`blink` graph](./img/blink.png)
 
+# Compilation
+
+Entry points of the `helloworld` applications can be found in the `test`
+directory as this was originally extracted from `ivory-bsp-tests`
+(`ivory-tower-stm32` repository). These are not complete applications
+anyway and during development you will write many of such test applications
+testing a small part of the complete system.
+
+If we take a look `test/SimpleBlinkTest.hs` we can see few mandatory
+imports that allow us to set-up the environment according to selected
+platform from `default.conf` config file.
+
+All the magic happens in the `compileTowerSTM32FreeRTOS` function provided
+by `Ivory.OS.FreeRTOS.Tower.STM32`.
+
+Imports of our code follow - `Platforms` (basically mapping to hardware)
+and `app` from `SimpleBlink` module.
+
+``` {.haskell .numberLines}
+module Main where
+
+import Ivory.Tower.Config
+import Ivory.Tower.Options
+import Ivory.OS.FreeRTOS.Tower.STM32
+
+import Hello.Tests.Platforms
+import Hello.Tests.SimpleBlink (app)
+
+main :: IO ()
+main = compileTowerSTM32FreeRTOS testplatform_stm32 p $
+  app testplatform_ledpin
+  where
+  p :: TOpts -> IO TestPlatform
+  p topts = getConfig topts testPlatformParser
+```
 
 # Platforms
 
