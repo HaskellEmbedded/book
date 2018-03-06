@@ -1037,7 +1037,51 @@ forever :: Ivory (E.AllowBreak eff) () -> Ivory eff ()
 
 # Porting
 
+We start adding stuff to `ivory-tower-stm32` repository and all the paths
+here are relative to this repository.
+
+When adding a new CPU you first need to add your CPU to `Processor` data type
+and also to `processorParser` in `ivory-bsp-stm32/src/Ivory/BSP/STM32/Processor.hs`.
+
+Then you need to create `stm32fXXXDefaults` function in
+`ivory-bsp-stm32/src/Ivory/BSP/STM32/Config.hs`. Make sure to adjust
+`stm32config_sram` (used in `FreeRTOS.total_heap_size`) and `stm32config_clock` - if using
+external crystal this calls another function
+
+```haskell
+externalXtal xtal_mhz 168
+```
+
+where 168 is the target frequency in `Mhz`. Definition of `externalXtal` is part
+of `ivory-bsp-stm32/src/Ivory/BSP/STM32/ClockConfig.hs` file.
+In `ivory-bsp-stm32/src/Ivory/BSP/STM32/ClockConfig/Init.hs` resides an actual clock
+initilization function `init_clocks` which you might need to alter if not using
+internal oscillator (HSI) or external crystal (HSE).
+
+Now we will add our CPU to `ivory-bsp-stm32/src/Ivory/BSP/STM32/LinkerScript.hs`
+which contains a `linker_script` function with several cases according to CPU.
+Add another `attrs STM32XXX` section and make sure you `sram_length`
+and `ccsram_length` are set correctly. `CCSRAM` corresponds to
+core-coupled memory which is tightly coupled to CPU to allow for code execution
+at maximum frequency. Templated linker script is located in
+`ivory-bsp-stm32/support/linker_script.lds.template` and might need adjusting
+as well (`sram` and `ccsram` origins are hardcoded for now).
+
 ## Unoffical ports
+
+We created few unofficial ports for `F0`, `F1`, `F3` and `F334` families which probably won't be integrated
+to `ivory-tower-stm32` unless there's significant interest. Porting from `F3` was quite
+easy but the port is far from complete, similar to `F1` and `F0` ports.
+
+During the development of `hexamon` firmware for `STM32F042` we've managed to hit the limits of the MCU quite fast
+and had to limit the number of actual `FreeRTOS` tasks spawned. While Ivory/Tower can run
+on such small MCU with only 6Kb of `SRAM` and 32Kb of flash it severally limits your options
+and should be considered for only single purpose applications. We also had to decrease
+`FreeRTOS` stack size for all of our tasks to be created. If you are still interested in this
+port you can take a look at [Initial F0](https://github.com/sorki/ivory-tower-stm32/commit/cce669b7493452e8e7c00c2f2218e037e8dbb3b2) commit.
+
+Currently we are trying to port to newer `F7` and `L4` families which we would like to use in our projects
+and support along with original `F4` support.
 
 # Tower backends
 
