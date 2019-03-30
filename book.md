@@ -780,8 +780,8 @@ sampleTower outChan = do
 ## Channels
 
 Tower gives us two types representing communication channels
-* `ChanInput a` - typed channel used to *send* messages of type `a`
-* `ChanOuput a` - typed channel used to *receive* message of type `a`
+  * `ChanInput a` - typed channel used to *send* messages of type `a`
+  * `ChanOuput a` - typed channel used to *receive* message of type `a`
 
 We use `channel` function to create a channel, which is just a tuple
 of input and output sides.
@@ -898,9 +898,9 @@ Coroutine allows us to call a `yield` function which it provides for us to pause
 the execution and wait for a result of a computation tied to `yield`.
 
 Following is a simple hypothetical example which uses three channels:
-* `initChan` - channel used to initialize or restart the coroutine
-* `requestChan` - we use this one to send requests
-* `resultChan` - we get results of our computation over this channel
+  * `initChan` - channel used to initialize or restart the coroutine
+  * `requestChan` - we use this one to send requests
+  * `resultChan` - we get results of our computation over this channel
 
 `yield` in `CoroutineBody` is then tied to `resultChan` and gets called whenever
 we get a message on that channel.
@@ -995,8 +995,8 @@ devDriver :: (BackpressureTransmit reqChan resChan) initChan initOkChan dev = do
       reqE <- emitter reqChan 1
       doneE <- emitter initOkChan 1
 
-      return $ CoroutineBody $ \ yield -> do
-        let rpc req = req >>= emit req_e >> yield
+      return $ CoroutineBody $ \yield -> do
+        let rpc req = req >>= emit reqE >> yield
 
         contents <- rpc (readRegReq dev 0x05)
         fstByte <- deref ((contents ~> rx_buf) ! 1)
