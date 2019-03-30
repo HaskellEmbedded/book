@@ -628,10 +628,10 @@ ifte
 
 ### Working with strings
 
-String is just an alias for struct with two fields
+String is just an alias for `struct` with two fields
 
-* `stringDataL`
-* `stringLengthL`
+* `stringDataL` - actual string contents
+* `stringLengthL` - length of the currently stored string
 
 Define string with the help of `Ivory` quasi quoter:
 
@@ -656,8 +656,10 @@ fwTowerDeps = do
   towerModule fwTypes
 ```
 
-This creates a `TestBuffer` type with `IvoryString` typeclass with maximum capacity of 1024 characters.
-We also define two helper functions `fwTypes` and `fwTowerDeps` to provide shortcuts for dependency management.
+This creates a `TestBuffer` type with `IvoryString` typeclass
+with maximum capacity of 1024 characters.
+We also define two helper functions `fwTypes` and `fwTowerDeps`
+to provide shortcuts for dependency management.
 
 stringInit "foo"
 
@@ -684,7 +686,7 @@ is over 9000.
 
 sampleTower :: ChanOutput ('Stored Uint8)
             -> Tower e (ChanOutput ('Stored Uint8))
-sampleTower inChan = do
+sampleTower outChan = do
   {-
   Here we can define additional channels, towers and periods (which are also towers)
   -}
@@ -702,14 +704,14 @@ sampleTower inChan = do
     {-
     and a handler for our input channel
     -}
-    handler inChan "sampleMonitorIn" $ do
+    handler outChan "sampleMonitorIn" $ do
       {-
       in handler, we can define its emitters, to be used for writing into channels (ChanInput(s))
       -}
       controlEmitter <- emitter controlInChan 1
       {-
       Then we write actual callback function
-      that gets `ref` passed from `inChan`s output
+      that gets `ref` passed from `outChan`s output
 
       In this case this is a reference to `Uint8` so we
       need to use `deref` to get a value  we can store
@@ -729,13 +731,33 @@ sampleTower inChan = do
 
 ## Channels
 
-ChanInput ChanOuput
+Tower gives us two types representing communication channels
+* `ChanInput a` - typed channel used to *send* messages of type `a`
+* `ChanOuput a` - typed channel used to *receive* message of type `a`
+
+We use `channel` function to create a channel, which is just a tuple
+of input and output sides.
+
 ```haskell
 chan <- channel
 (chanIn, chanOut) <- channel
 ```
 
+We typically structure our program as a network of channels and respective handlers and emitters.
+In the previous example of `sampleTower` we have a function
+that accepts `ChanOutput ('Stored Uint8)` and returns another channel of the same type.
+
+This tells us that the tower receives messages from one channel and gives us
+a channel that we can use to consume messages produced by it. It also creates
+the latter channel for us and returns its output side.
+
+
 ## Periods
+
+Tower gives us a way of scheduling periodic events via messages generated
+on some channel. `period` function gives us a channel of type
+`ChanOutput ('Stored ITime)` which we can use in our handlers where periodic
+calls are required.
 
 ```haskell
 periodic <- period (Milliseconds 500)
@@ -748,14 +770,45 @@ monitor "sampleMonitor" $ do
 
 ## Interrupts
 
+For working with interrupts Tower offers the `signalUnsafe` function, which
+accepts the actual interrupt, time bound (or deadline) for real time verification
+purposes and a function for disabling the interrupt. When interrupt occurs
+it automatically calls the disable function and we need to enable the interrupt
+again if deserved.
+
+```haskell
+isrExampleTower :: (STM32Interrupt i)
+                => i
+                -> Tower e ()
+isrExampleTower int = do
+  irq <- signalUnsafe
+            (Interrupt int)
+            (Microseconds 250)
+            (interrupt_disable int)
+
+  monitor "isrExampleMon" $ do
+    handler isr "isrHandler" $ do
+      callback $ const $ do
+        -- we serve the interrupt here
+        -- and reenable it afterwards
+        interrupt_enable int
+```
+
 ## HAL
 
-Ivory.Tower.HAL.Bus.Interface
-tower/tower-hal/src/Ivory/Tower/HAL/Bus/Interface.hs
+HAL or Hardware Abstraction Layer in Tower is an extremely small interface
+abstracting over common embedded communication buses like SPI, I2C or CAN.
+
+Module `Ivory.Tower.HAL.Bus.Interface` defines two higher order types, `BackpressureTransmit`
+and `AbortableTransmit`. At first these look quite complicated and scary but they
+are nothing more than a representation of a way of how we talk to
+the peripheral driver.
 
 ### BackpressureTransmit
 
-BackpressureTransmit request response
+Commonly used as `BackpressureTransmit request response` for SPI and I2C buses.
+We send message to `backpressureTransmit` channel and receive
+responses from `backpressureComplete` channel.
 
 ```haskell
 data BackpressureTransmit value status = BackpressureTransmit
@@ -764,8 +817,16 @@ data BackpressureTransmit value status = BackpressureTransmit
   }
 ```
 
-
 ### AbortableTransmit
+
+`AbortableTransmit` is used for communication over CAN bus where it is possible
+to abort the pending transfer before it is sent to the bus. This is useful
+for cases where we have e.g. more recent measurement available but our last message
+is still waiting to be transferred - we can abort the transfer and send the more
+recent message instead.
+
+This is similar to `BackpressureTransmit` but offers `abortableAbort` channel,
+which can be used to cancel the transfer.
 
 ```haskell
 data AbortableTransmit value status = AbortableTransmit
