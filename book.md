@@ -367,6 +367,13 @@ ledController :: [LED] -> ChanOutput ('Stored IBool) -> Monitor e ()
 
 ![`blink` graph](./img/blink.png)
 
+From the type of the `ledController` you can infer a lot of information
+about the controller - it accepts a list of `LED`s and an output side
+of a `IBool` typed channel. You might guess the functionality
+and it's usage just by looking at the type information - by feeding
+a boolean value to input side of the channel, the `ledController`
+switches a bunch of `LED`s according to the received value.
+
 # Compilation
 
 Entry points of the `helloworld` applications can be found in the `test`
@@ -402,6 +409,12 @@ main = compileTowerSTM32FreeRTOS testplatform_stm32 p $
   p :: TOpts -> IO TestPlatform
   p topts = getConfig topts testPlatformParser
 ```
+
+Application typically accepts a number of functions of type `e -> Something`
+which are used for querying environment with `getEnv`. This allows to use
+the same application with different platforms and configurations. In case of
+`simpleblink` we only pass a `testplatform_ledpin` to app as it only needs
+one `GPIOPin` to work.
 
 # Platforms
 
