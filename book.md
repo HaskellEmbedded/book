@@ -671,22 +671,31 @@ Ivory.Serialize.Little
 
 ## Structure of a tower
 
+
+Following is an overly verbose tower definition
+with comments explaining different contexts and
+general outline of a tower. `sampleTower` is a fake
+controller which takes an output channel and returns
+another output channel which called `control`. Incoming
+values are passed to `control` channel iff they're value
+is over 9000.
+
 ```haskell
 
 sampleTower :: ChanOutput ('Stored Uint8)
             -> Tower e (ChanOutput ('Stored Uint8))
 sampleTower inChan = do
   {-
-  here we can define additional channels, towers and periods (which are also towers)
+  Here we can define additional channels, towers and periods (which are also towers)
   -}
-  chan <- channel
+  (controlInChan, controlOutChan) <- channel
 
   {-
-  afterwards we define a monitor - which basically defines a controller block
+  Afterwards we define a monitor - which basically defines a controller block
   -}
   monitor "sampleMonitor" $ do
     {-
-    in monitor we can define its states
+    In monitor we can define its states
     -}
     lastValue <- state "lastValue"
 
@@ -697,14 +706,24 @@ sampleTower inChan = do
       {-
       in handler, we can define its emitters, to be used for writing into channels (ChanInput(s))
       -}
-      out <- emitter chan 1
+      controlEmitter <- emitter controlInChan 1
+      {-
+      Then we write actual callback function
+      that gets `ref` passed from `inChan`s output
+
+      In this case this is a reference to `Uint8` so we
+      need to use `deref` to get a value  we can store
+      and compare later - if the value is over 9000 we
+      use `emit` to emit the same reference as we've
+      received from callback via controlEmitter.
+      -}
       callback $ \ref -> do
         value <- deref ref
         store lastValue value
 
-        when (value >= 9000) $ emit out ref
+        when (value >? 9000) $ emit controlEmitter ref
 
-  return $ snd chan
+  return controlOutChan
 
 ```
 
@@ -758,7 +777,134 @@ data AbortableTransmit value status = AbortableTransmit
 
 ## Coroutines
 
-yield and init
+Coroutines allow us to suspend and resume a computation, typically while waiting
+for result of another computation. This is very handy for embedded programming
+as we often need to wait for external device to return new data over some channel.
+
+For example when we communicate with some device connected over UART we just use
+a channels provided by UART driver to talk to it and let the driver do all the hard
+work of actually transmitting bytes and letting us know when transmission is complete.
+
+Coroutine allows us to call a `yield` function which it provides for us to pause
+the execution and wait for a result of a computation tied to `yield`.
+
+Following is a simple hypothetical example which uses three channels:
+* `initChan` - channel used to initialize or restart the coroutine
+* `requestChan` - we use this one to send requests
+* `resultChan` - we get results of our computation over this channel
+
+`yield` in `CoroutineBody` is then tied to `resultChan` and gets called whenever
+we get a message on that channel.
+
+```haskell
+coroutineHandler initChan resultChan "myCoroutine" $ do
+
+  requestEmitter <- emitter chan 1
+
+  return $ CoroutineBody $ \yield -> do
+    emitV requestEmitter true
+    fstResult <- yield
+
+    emitV requestEmitter false
+    sndResult <- yield
+
+    return ()
+```
+
+This is quite useful for protocol oriented communication with devices
+connected over UART, SPI, I2C or CAN bus - we send a request message,
+wait for a driver to handle transport for us and sends us a reply over
+result channel - which triggers respective `yield` in our coroutine.
+
+Take for example UART driver - it typically returns two channels, one for output
+and for input. We use the output channel (usually named `ostream`) to send data
+to the external device and input channel (typically `istream`) to receive the data.
+
+We can take advantage of this in our coroutines where we use output channel to
+send messages to external device via `emitter` and `yield` to wait for replies.
+
+Lets say we want to implement simple request reply protocol in form of
+```
+> version
+< 1
+> readbit
+< 0
+```
+
+We can use the following coroutine to perform the communication:
+
+```haskell
+protocolTower :: ChanInput ('Stored Uint8)
+              -> ChanOutput ('Stored Uint8)
+              -> Tower p ()
+protocolTower ostream istream = do
+  monitor "protocol" $ do
+    coroutineHandler systemInit istream "myProtocolCoroutine" $ do
+
+      requestEmitter <- emitter ostream 32
+
+      return $ CoroutineBody $ \yield -> do
+
+        puts requestEqmiiter "version"
+        versionResult <- yield
+
+        puts requestEqmiiter "readbit"
+        bitValue <- yield
+
+        return ()
+```
+
+SPI device drivers are implemented in similar manner but instead of `ostream` and `istream`
+they operate with
+
+```haskell
+BackpressureTransmit ('Struct "spi_transaction_request")
+                     ('Struct "spi_transaction_result")
+```
+
+In this case we need to fill a `struct` representing our SPI request
+and we get back another `struct` with the result of the SPI transfer. This pattern
+is commonly expressed as `rpc` function which calls a function to create our
+request, send it to device and wait (with `yield`) for the result.
+
+Following is an example of simple SPI device driver that reads out a specific register
+and sends `true` on `initOkChan` if we see an expected value (common pattern during
+device installation is to check some vendor provided register if it contains a correct value
+so we know we are talking to the right device).
+
+```haskell
+devDriver :: BackpressureTransmit ('Struct "spi_transaction_request")
+                                  ('Struct "spi_transaction_result")
+          -> ChanOutput ('Stored ITime)
+          -> ChanInput  ('Stored IBool)
+          -> SPIDeviceHandle
+          -> Tower e ()
+devDriver :: (BackpressureTransmit reqChan resChan) initChan initOkChan dev = do
+  monitor "devMonitor" $ do
+
+    coroutineHandler initChan resChan "devDriver" $ do
+      reqE <- emitter reqChan 1
+      doneE <- emitter initOkChan 1
+
+      return $ CoroutineBody $ \ yield -> do
+        let rpc req = req >>= emit req_e >> yield
+
+        contents <- rpc (readRegReq dev 0x05)
+        fstByte <- deref ((contents ~> rx_buf) ! 1)
+        emitV doneE (fstByte ==? 0x13)
+
+-- here we construct a spi_transaction_request struct
+readRegReq :: (GetAlloc eff ~ 'Scope s)
+           => SPIDeviceHandle
+           -> Uint8
+           -> Ivory eff (ConstRef ('Stack s) ('Struct "spi_transaction_request"))
+readRegReq dev reg = fmap constRef $ local $ istruct
+  [ tx_device .= ival dev
+  , tx_buf    .= iarray [ ival (fromIntegral reg), ival 0 ]
+  , tx_len    .= ival 2
+  ]
+
+```
 
 ## Schedule
 
