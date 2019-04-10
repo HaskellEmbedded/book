@@ -452,10 +452,80 @@ display /x rxcmd.rx_buf
 display /t rxcmd.rx_buf
 ```
 
-
 # Ivory
 
+Ivory is a fully featured eDSL for safe system programming. Ivory gives strong guarantees of type and memory safety.
+It can be regarded as a restricted variant of C language.
+
 ## Casts
+
+When converting numbers from one type to another we have to do it explicitely - there is no
+automatic conversion and failure to cast numbers will result in type errors.
+
+Ivory provides us with few casting operations: `safeCast`, `signCast`, `bitCast`, `castWith`, `castDefault`, `twosComplementCast`
+
+These are restricted by type classes so for example `SafeCast` only allows us to cast smaller `Uint8` to larger `Uint16`
+but not vice-versa.
+
+### `SafeCast`
+
+SafeCast typeclass represents conversions that can be done safely
+- from smaller (bitwise) integers to its larger counterparts
+  * `Uint8` to `Uint16` or larger
+  * `Sint8` to `Sint16` or larger
+- from unsigned integers to signed integers
+  * `Sint8` to `Uint16`
+  * but not `Sint8` to `Uint8`
+- from floats to doubles
+  * `IFloat` to `IDouble`
+- from integers to floats or doubles
+  * `Uint16` to `IFloat` or `IDouble`
+  * `Sint32` to `IFloat` or `IDouble`
+  * with the exception of `Uint64`/`Sint64` that can only be converted to `IDouble`
+
+Example use:
+```haskell
+x <- assign (23 :: Uint8)
+y <- assign $ (safeCast :: Uint8 -> Sint32) x
+```
+
+Often we don't have to specify the type of `safeCast` and let the compiler infer the
+conversion according to surrounding code.
+
+### `SignCast`
+
+SignCast allows us to convert numbers with the same bitwidth from unsigned to their signed counterparts
+iff the conversion is safe. If the conversion would result in overflow its result is the minimum
+or maximum boundary of the *target* type. Same holds for converting signed to unsigned numbers.
+
+Examples include
+```haskell
+signCast :: Sint8 -> Uint8
+signCast :: Uint64 -> Sint64
+```
+
+### `bitCast`
+
+To cast from larget bit type to smaller one, while discarding upper bits of the input we can use
+`bitCast`. This is only valid for unsigned integer types.
+
+Examples:
+```haskell
+bitCast :: Uint16 -> Uint8
+bitCast :: Uint64 -> Uint8
+```
+
+### `castWith` and `castDefault`
+
+We can use `castWith defaultValue` to cast a value if it is within boundaries of the target type
+or fallback to `defaultValue` if it is outside bounds.
+
+`castDefault` is like `castWith 0` for types where 0 value is defined (types having `Default` typeclass).
+
+### `twosComplementCast`
+
+To convert between signed and unsigned types of the same width, we can use `twosComplementCast` which will
+convert values bitwise, e.g. from `Uint32` to `Sint32`.
 
 ## Bit twiddling
 
@@ -718,6 +788,8 @@ Ivory.Serialize.Little
 
 # Tower
 
+The Tower Language is a concurrency framework for composing Ivory programs into real-time systems.
+Tower offers communication channels, signal handlers, tasks and scheduling.
 
 ## Structure of a tower
 
