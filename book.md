@@ -77,7 +77,7 @@ git clone https://github.com/GaloisInc/ivory-tower-stm32/
 ## Programmer
 
 For `F4 Discovery` it is recommended to re-flash ST-Link programmer with BlackMagic probe
-and add UART passhru according to [F4 Discovery hacking] section
+and add UART passthru according to [F4 Discovery hacking] section
 
 ## UDev
 For persistent device names you should create udev rules files in `/etc/udev/rules.d/`. For
@@ -207,7 +207,7 @@ of F4 devices. Definitions of the `GPIO` registers are imported from `Ivory.BSP.
 (the application actually uses only `GPIOPin` type from this module as the rest of the `GPIO` manipulation is abstracted).
 
 We also need to enable `DataKinds` language extension to allow for complex type annotations of our towers. Following tower
-represents a block of code responsible for togging a led. Its type tells us a that it accepts a `GPIOPin` and
+represents a block of code responsible for toggling a led. Its type tells us a that it accepts a `GPIOPin` and
 returns a `ChanInput ('Stored ITime))` in the `Tower` monad which basically means that by creating this tower
 it gives us an input channel with some concrete type (in this case `ITime`).
 
@@ -220,7 +220,7 @@ ledToggle ledPin = do
   (cIn, cOut) <- channel
 ```
 
-By using `channel` function we create a channel with input and ouput sides. We proceed by defining
+By using `channel` function we create a channel with input and output sides. We proceed by defining
 a `monitor` with some name. Monitor is another building block we will meet quite frequently and
 its exact meaning will be explained later.
 
@@ -279,7 +279,7 @@ to just `pinEnable` and `pinSetMode` functions. Next handler is a bit more inter
 In monitor context, we first define a `ledOn` state with `stateInit` function. To be explicit
 we also define its initialization value via `ival false` hence the use of `stateInit` instead
 of simpler `state` function that would also initialize `ledOn` state variable to false after
-its type is infered from local context. We will discuss state and initializers in more detail
+its type is inferred from local context. We will discuss state and initializers in more detail
 a bit later.
 
 `ledOn` represents a local state variable contained within current monitor. We use this
@@ -459,7 +459,7 @@ It can be regarded as a restricted variant of C language.
 
 ## Casts
 
-When converting numbers from one type to another we have to do it explicitely - there is no
+When converting numbers from one type to another we have to do it explicitly - there is no
 automatic conversion and failure to cast numbers will result in type errors.
 
 Ivory provides us with few casting operations: `safeCast`, `signCast`, `bitCast`, `castWith`, `castDefault`, `twosComplementCast`
@@ -799,7 +799,7 @@ with comments explaining different contexts and
 general outline of a tower. `sampleTower` is a fake
 controller which takes an output channel and returns
 another output channel which called `control`. Incoming
-values are passed to `control` channel iff they're value
+values are passed to `control` channel iff their value
 is over 9000.
 
 ```haskell
@@ -1026,10 +1026,10 @@ protocolTower ostream istream = do
 
       return $ CoroutineBody $ \yield -> do
 
-        puts requestEqmiiter "version"
+        puts requestEmitter "version"
         versionResult <- yield
 
-        puts requestEqmiiter "readbit"
+        puts requestEmitter "readbit"
         bitValue <- yield
 
         return ()
@@ -1140,7 +1140,7 @@ externalXtal xtal_mhz 168
 where 168 is the target frequency in `Mhz`. Definition of `externalXtal` is part
 of `ivory-bsp-stm32/src/Ivory/BSP/STM32/ClockConfig.hs` file.
 In `ivory-bsp-stm32/src/Ivory/BSP/STM32/ClockConfig/Init.hs` resides an actual clock
-initilization function `init_clocks` which you might need to alter if not using
+initialization function `init_clocks` which you might need to alter if not using
 internal oscillator (HSI) or external crystal (HSE).
 
 Now we will add our CPU to `ivory-bsp-stm32/src/Ivory/BSP/STM32/LinkerScript.hs`
