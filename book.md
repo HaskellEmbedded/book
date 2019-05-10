@@ -470,18 +470,19 @@ but not vice-versa.
 ### `SafeCast`
 
 SafeCast typeclass represents conversions that can be done safely
-- from smaller (bitwise) integers to its larger counterparts
-  * `Uint8` to `Uint16` or larger
-  * `Sint8` to `Sint16` or larger
-- from unsigned integers to signed integers
-  * `Sint8` to `Uint16`
-  * but not `Sint8` to `Uint8`
-- from floats to doubles
-  * `IFloat` to `IDouble`
-- from integers to floats or doubles
-  * `Uint16` to `IFloat` or `IDouble`
-  * `Sint32` to `IFloat` or `IDouble`
-  * with the exception of `Uint64`/`Sint64` that can only be converted to `IDouble`
+
+* from smaller (bitwise) integers to its larger counterparts
+    * `Uint8` to `Uint16` or larger
+    * `Sint8` to `Sint16` or larger
+* from unsigned integers to signed integers
+    * `Uint8` to `Sint16`
+    * but not `Uint8` to `Sint8`
+* from floats to doubles
+    * `IFloat` to `IDouble`
+* from integers to floats or doubles
+    * `Uint16` to `IFloat` or `IDouble`
+    * `Sint32` to `IFloat` or `IDouble`
+    * with the exception of `Uint64`/`Sint64` that can only be converted to `IDouble`
 
 Example use:
 ```haskell
