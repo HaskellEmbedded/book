@@ -9,7 +9,7 @@ embededded toolchains keep on reading!
 
 ## Ivory
 
-The [Ivory Language](http://ivorylang.org/tower-overview.html) is an embedded domain specific language (eDSL) for safe systems programming.
+The [Ivory Language](http://ivorylang.org/) is an embedded domain specific language (eDSL) for safe systems programming.
 It is embedded in Haskell which keeps types in check and serves as a macro language. Ivory can generate various outputs - most notably a C code.
 
 ## Tower
