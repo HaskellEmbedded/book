@@ -853,6 +853,7 @@ sampleTower outChan = do
 ## Channels
 
 Tower gives us two types representing communication channels
+
   * `ChanInput a` - typed channel used to *send* messages of type `a`
   * `ChanOuput a` - typed channel used to *receive* message of type `a`
 
