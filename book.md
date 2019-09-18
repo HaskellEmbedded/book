@@ -701,13 +701,17 @@ reg offs name = mkBitDataRegNamed (base + offs) (n ++ "->" ++ name)
 
 ## Structs
 
-## Arrays
-
 ## Statements
 
 ### Loops
 
 ### Conditionals
+
+ifte
+cond
+cond_
+when
+unless
 
 ## Functions
 
@@ -730,17 +734,6 @@ reg offs name = mkBitDataRegNamed (base + offs) (n ++ "->" ++ name)
 
 ```
 arrayCopy
-```
-
-### Conditionals
-
-```
-when
-unless
-cond_
-
-cond
-ifte
 ```
 
 ### Maybe
@@ -1233,7 +1226,7 @@ state <- stateInit "motor_state" (
   ])
 ```
 
-Missing fields from `istruct` are initialized to `IvoryZeroVal` which is most often `0` or `false`.
+Missing fields from `istruct` are initialized to `IvoryZeroVal` which is most often `0` or `False`.
 
 
 
