@@ -697,13 +697,137 @@ reg :: (IvoryIOReg (BitDataRep d)) => Integer -> String -> BitDataReg d
 reg offs name = mkBitDataRegNamed (base + offs) (n ++ "->" ++ name)
 ```
 
+## Types
+
+### Boolean
+
+IBool
+
+### Char
+
+IChar
+
+### Numeric types
+
+Uint8 - 64
+Sint8 - 64
+
+#### Floating
+
+IFloat
+IDouble
+
+### Memory area types
+
+Stored X
+Array n X
+Struct "name"
+
+### Pointer types
+
+Ref Local (Stored Sint32)
+Ref Global (Struct "foo")
+Ref s (Stored IBool)
+
+### Initializer types
+
+Init x
+
+### Index types
+
+Ix n
+support 0 .. n-1 values
+
+example
+(10 :: Ix 11)
+
 ## Initializers
 
+ival
+izero
+
 ## Structs
+
+To create `structs` we use a quasi-quoter provided by `Ivory.Language`.
+Following example is a definition of a `Measurement` struct.
+
+```haskell
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module Hello.Types where
+
+import Ivory.Language
+import Ivory.Tower.Types.Time
+
+[ivory|
+struct measurement
+  { meas_valid :: Stored IBool
+  ; meas_data  :: Array 3 (Stored Uint32)
+  ; meas_time  :: Stored ITime
+  }
+|]
+
+measTypesModule :: Module
+measTypesModule = package "meas_types" $ do
+  defStruct (Proxy :: Proxy "measurement")
+```
+
+The function `measTypesModule` creates a `Module`
+(XXX: Refer to module system) which we can use to declare
+a dependency on this `measurement` struct.
+
+
+### Struct initialization
+
+To create a new struct we use `istruct` initializer, most commonly in combination with `local` such as:
+```haskell
+t <- getTime
+
+res <- local $ istruct [
+    meas_valid .= ival true
+  , meas_time  .= ival t
+  ]
+```
+
+`res` now contains a memory reference to our newly created "measurement" struct, its type is
+
+```haskell
+> :t res
+Ref s ('Struct "measurement")
+```
+
+## Struct access
+
+To get a value out of structs field use `deref` in combination with `~>` operator:
+
+```haskell
+valid <- deref $ res ~> meas_valid
+```
+
+To set a field we use `store` and `~>`:
+
+```haskell
+store (res ~> meas_valid) false
+```
+
+`~>` operator is just a field access operator according to the label passed on its right side, as the fields of the struct
+are all `Stored` values we can use `deref` and `store` to alter these.
+
+(XXX: Link to ~>* shortcut
+
 
 ## Statements
 
 ### Loops
+
+for (n-1)
+times (n-1)
+upTo
+downTo
+
 
 ### Conditionals
 
@@ -712,6 +836,14 @@ cond
 cond_
 when
 unless
+
+Boolean ops
+==?
+/=?
+<?
+>?
+<=?
+>=?
 
 ## Functions
 
@@ -773,7 +905,10 @@ with maximum capacity of 1024 characters.
 We also define two helper functions `fwTypes` and `fwTowerDeps`
 to provide shortcuts for dependency management.
 
-stringInit "foo"
+Strings are commonly used as buffers for `UART` communication. You can also initialize string directly with
+```
+myStr <- stringInit "foo"
+```
 
 ## Serialization
 
@@ -787,12 +922,11 @@ Tower offers communication channels, signal handlers, tasks and scheduling.
 
 ## Structure of a tower
 
-
 Following is an overly verbose tower definition
 with comments explaining different contexts and
 general outline of a tower. `sampleTower` is a fake
 controller which takes an output channel and returns
-another output channel which called `control`. Incoming
+another output channel called `control`. Incoming
 values are passed to `control` channel iff their value
 is over 9000.
 
@@ -864,7 +998,7 @@ that accepts `ChanOutput ('Stored Uint8)` and returns another channel of the sam
 
 This tells us that the tower receives messages from one channel and gives us
 a channel that we can use to consume messages produced by it. It also creates
-the latter channel for us and returns its output side.
+the latter channel for us and returns its output side. Does this remind you of the UNIX pipes?
 
 
 ## Periods
