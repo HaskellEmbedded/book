@@ -23,39 +23,29 @@ or [EChronos](https://github.com/echronos/echronos) embedded real-time operating
 
 The board we are going to use throughout this book is [STM32 F4 Discovery](http://www.st.com/en/evaluation-tools/stm32f4discovery.html). This is
 quite nice development board featuring `STM32F407VG` microcontroller (MCU), few peripherals like MEMS accelerometer and a smaller `STM32F103` MCU
-for programming the main MCU. The other reason for choosing this board as it is natively supported by `ivory-tower-stm32` backend. While we at
-the [base48](https://base48.cz) hackerspace managed to port this to other families like `F0`, `F1` and `F3` it is better to use `F4` based board
-as these ports are still considered unofficial and incomplete.
+for programming the main MCU.
+
+Most of the STM32 MCUs are now suppported, check out [ivory-tower-stm32-generated compatibility matrix](https://github.com/HaskellEmbedded/ivory-tower-stm32-generated#compatibility-matrix).
 
 # Environment setup
 
-For development a Linux machine is preferred although anything that can run Haskell's `stack` will do.
-Currently, my favorite distribution for Haskell development is NixOS.
+Recommend development environment is a [NixOS](https://nixos.org/) system as we use [Nix](https://nixos.org/manual/nix/stable/#ch-about-nix)
+to setup all the required dependencies and even build full firmware images. NixOS system is not strictly required but Nix is (it can be installed
+on most systems either via their native package manager or according to https://nixos.org/manual/nix/stable/#ch-installing-binary).
 
-## Distribution specific instructions
+After Nix installation, clone [ivory-tower-nix](https://github.com/HaskellEmbedded/ivory-tower-nix/) repository which contains
+our Haskell overlay and recipes for building various firmware images and development shells.
 
-### NixOS
-
-```bash
-nix-env -f "<nixpkgs>" -iA gcc-arm-embedded stack
-```
-
-### Fedora
 
 ```bash
-dnf install arm-none-eabi-gcc-cs arm-none-eabi-newlib
+git clone https://github.com/HaskellEmbedded/ivory-tower-nix/
+git clone https://github.com/distrap/ivory-tower-helloworld/
+cd ivory-tower-nix
+nix-shell
+cd ../ivory-tower-helloworld
+make simpleblink-test
 ```
 
-Install stack according to instructions in the following section.
-
-## Stack
-
-Stack build tool is used by Ivory/Tower projects.  Install stack first according to
-[these instructions](http://docs.haskellstack.org/en/stable/install_and_upgrade/).
-
-## ARM GCC
-
-`arm-none-eabi-gcc` is required for compiling generated C-code.
 
 ## Repositories
 
