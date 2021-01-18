@@ -835,6 +835,10 @@ Boolean ops
 <=?
 >=?
 
+.&&
+.||
+iNot
+
 ## Functions
 
 ## Comments
@@ -850,6 +854,17 @@ Boolean ops
 %=
 %=!
 +=
+```
+
+#### Bit manipulation
+
+```
+AND .&
+OR  .|
+XOR .^
+<< iShiftL
+>> iShiftR
+iComplement
 ```
 
 ### Arrays
